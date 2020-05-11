@@ -1,2 +1,3 @@
 files/setup_mac_hosts.sh
 .DS_Store
+terraform/.terraform/plugins/
