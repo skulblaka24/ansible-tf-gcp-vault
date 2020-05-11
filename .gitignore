@@ -1,3 +1,7 @@
 files/setup_mac_hosts.sh
 .DS_Store
 terraform/.terraform/plugins/
+files/.DS_Store
+tasks/.DS_Store
+defaults/.DS_Store
+meta/.DS_Store
