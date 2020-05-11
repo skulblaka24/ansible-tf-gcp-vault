@@ -1,0 +1,73 @@
+---
+# Provisionning VMs on GCP
+
+- name: Allowing dns configuration
+  shell: "cd \"{{ role_path }}\"/terraform/; mv ./dns.txt ./dns.tf"
+  ignore_errors: yes
+  when: activate_dns == "true"
+
+- name: Allowing gkms configuration
+  shell: "cd \"{{ role_path }}\"/terraform/; mv ./gkms.txt ./gkms.tf"
+  ignore_errors: yes
+  when: activate_gkms == "true"
+
+- name: Denying dns configuration
+  shell: "cd \"{{ role_path }}\"/terraform/; mv ./dns.tf ./dns.txt"
+  ignore_errors: yes
+  when: activate_dns == "false"
+
+- name: Denying gkms configuration
+  shell: "cd \"{{ role_path }}\"/terraform/; mv ./gkms.tf ./gkms.txt"
+  ignore_errors: yes
+  when: activate_gkms == "false"
+
+# Add a template to create the terraform.tfvars
+
+# New keys must be made or the tf output will not be handled and the hosts file not updated
+- name: Provisionning VMs - Setting DNS on GCP - Creating keys for unsealing
+  terraform:
+    project_path: "{{ role_path }}/terraform/"
+    state: "present"
+    force_init: true
+    variables:
+      region: "{{ region }}"
+      region_zone: "{{ region_zone }}"
+      project_name: "{{ project_name }}"
+      account_file_path: "{{ account_file_path }}"
+      image: "{{ image }}"
+      gcp_dns_zone: "{{ gcp_dns_zone }}"
+      gcp_dns_domain: "{{ gcp_dns_domain }}"
+      ssh_user: "{{ ssh_user }}"
+      ssh_pub_key: "{{ ssh_pub_key }}"
+      node_count: "{{ node_count }}"
+      #gkms_vault_key_ring: "{{ gkms_vault_key_ring }}"
+      gkms_vault_key: "{{ gkms_vault_key }}"
+  register: terraform_output
+
+- name: Configure localhost /etc/hosts
+  shell: '"{{ role_path }}"/files/setup_mac_hosts.sh {{ item }}'
+  become: true
+  become_method: sudo
+  become_user: root
+  with_items: "{{ terraform_output.outputs.gcp_instances_vault_ip.value }}"
+
+- name: Cleanup file before writing new informations
+  file:
+    path: "/tmp/.ns.tmp"
+    state: absent
+  become: true
+  become_method: sudo
+
+- name: Save name server configuration
+  shell: 'echo {{ item }} >> /tmp/.ns.tmp'
+  become: true
+  become_method: sudo
+  become_user: root
+  with_items: "{{ terraform_output.outputs.gcp_dns_zone_nameservers.value }}"
+
+- name: Save GCP KMS Keyring
+  shell: 'echo {{ terraform_output.outputs.gcp_key_ring_name.value }} > /tmp/.keyring.tmp'
+  become: true
+  become_method: sudo
+  become_user: root
+
